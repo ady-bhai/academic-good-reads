@@ -18,6 +18,21 @@ interface Note {
   timestamp: string;
 }
 
+interface Comment {
+  id: string;
+  text: string;
+  timestamp: string;
+  userName: string;
+}
+
+interface Review {
+  id: string;
+  text: string;
+  rating: number;
+  timestamp: string;
+  userName: string;
+}
+
 interface Paper {
   id: string;
   title: string;
@@ -36,6 +51,8 @@ interface Paper {
   annotations: Annotation[];
   notes: Note[];
   sections: { title: string; page: number }[];
+  comments: Comment[];
+  reviews: Review[];
 }
 
 interface SearchFilters {
@@ -66,6 +83,10 @@ export default function Home(): JSX.Element {
   });
   const [isSearching, setIsSearching] = useState<boolean>(false);
   const [searchResults, setSearchResults] = useState<ArxivPaper[]>([]);
+  const [commentText, setCommentText] = useState<string>('');
+  const [reviewText, setReviewText] = useState<string>('');
+  const [reviewRating, setReviewRating] = useState<number>(5);
+  const [showReviewForm, setShowReviewForm] = useState<boolean>(false);
 
   const handleSearch = useCallback((event: React.ChangeEvent<HTMLInputElement>): void => {
     const query = event.target.value;
@@ -152,6 +173,63 @@ export default function Home(): JSX.Element {
     }
   }, [selectedPaper]);
 
+  const handleAddComment = useCallback((paperId: string, text: string): void => {
+    if (!text.trim()) return;
+
+    const newComment: Comment = {
+      id: Date.now().toString(),
+      text,
+      timestamp: new Date().toISOString(),
+      userName: 'Anonymous User'
+    };
+
+    setPapers(prev =>
+      prev.map(paper =>
+        paper.id === paperId
+          ? { ...paper, comments: [...paper.comments, newComment] }
+          : paper
+      )
+    );
+
+    if (selectedPaper?.id === paperId) {
+      setSelectedPaper(prev =>
+        prev ? { ...prev, comments: [...prev.comments, newComment] } : null
+      );
+    }
+
+    setCommentText('');
+  }, [selectedPaper]);
+
+  const handleAddReview = useCallback((paperId: string, text: string, rating: number): void => {
+    if (!text.trim()) return;
+
+    const newReview: Review = {
+      id: Date.now().toString(),
+      text,
+      rating,
+      timestamp: new Date().toISOString(),
+      userName: 'Anonymous User'
+    };
+
+    setPapers(prev =>
+      prev.map(paper =>
+        paper.id === paperId
+          ? { ...paper, reviews: [...paper.reviews, newReview] }
+          : paper
+      )
+    );
+
+    if (selectedPaper?.id === paperId) {
+      setSelectedPaper(prev =>
+        prev ? { ...prev, reviews: [...prev.reviews, newReview] } : null
+      );
+    }
+
+    setReviewText('');
+    setReviewRating(5);
+    setShowReviewForm(false);
+  }, [selectedPaper]);
+
   const searchArxiv = useCallback(async (query: string): Promise<void> => {
     if (!query.trim()) {
       setSearchResults([]);
@@ -229,7 +307,9 @@ export default function Home(): JSX.Element {
       totalPages: 0,
       annotations: [],
       notes: [],
-      sections: []
+      sections: [],
+      comments: [],
+      reviews: []
     };
 
     setPapers(prev => [...prev, newPaper]);
@@ -260,7 +340,6 @@ export default function Home(): JSX.Element {
   if (isReaderMode && selectedPaper) {
     return (
       <div className="flex h-screen bg-gray-100">
-        {/* Left sidebar - Table of Contents */}
         <div className="w-64 bg-white border-r border-gray-200 p-4 overflow-y-auto">
           <h2 className="text-lg font-semibold mb-4">Table of Contents</h2>
           {selectedPaper.sections.length > 0 ? (
@@ -285,9 +364,7 @@ export default function Home(): JSX.Element {
           )}
         </div>
 
-        {/* Main content - PDF Viewer */}
         <div className="flex-1 flex flex-col">
-          {/* Toolbar */}
           <div className="bg-white border-b border-gray-200 p-4 flex items-center justify-between">
             <div className="flex items-center gap-4">
               <button
@@ -318,7 +395,6 @@ export default function Home(): JSX.Element {
             </div>
           </div>
 
-          {/* PDF Content */}
           <div className="flex-1 overflow-auto p-8">
             {selectedPaper.pdfUrl ? (
               <iframe
@@ -334,7 +410,6 @@ export default function Home(): JSX.Element {
           </div>
         </div>
 
-        {/* Right sidebar - Notes & Annotations */}
         <div className="w-80 bg-white border-l border-gray-200 p-4 overflow-y-auto">
           <div className="mb-6">
             <h2 className="text-lg font-semibold mb-4">Notes</h2>
@@ -357,6 +432,121 @@ export default function Home(): JSX.Element {
             >
               Add Note
             </button>
+          </div>
+
+          <div className="mb-6">
+            <h2 className="text-lg font-semibold mb-4">Reviews</h2>
+            <div className="space-y-4">
+              {selectedPaper.reviews.map((review) => (
+                <div key={review.id} className="bg-blue-50 p-3 rounded">
+                  <div className="flex items-center gap-2 mb-2">
+                    <div className="flex">
+                      {[1, 2, 3, 4, 5].map((star) => (
+                        <span
+                          key={star}
+                          className={`text-lg ${
+                            star <= review.rating
+                              ? 'text-[#FF9900]'
+                              : 'text-gray-300'
+                          }`}
+                        >
+                          {'★'}
+                        </span>
+                      ))}
+                    </div>
+                    <span className="text-sm text-gray-600">
+                      by {review.userName}
+                    </span>
+                  </div>
+                  <p className="text-sm">{review.text}</p>
+                  <p className="text-xs text-gray-500 mt-1">
+                    {new Date(review.timestamp).toLocaleDateString()}
+                  </p>
+                </div>
+              ))}
+            </div>
+            {!showReviewForm ? (
+              <button
+                onClick={() => setShowReviewForm(true)}
+                className="mt-4 w-full px-4 py-2 bg-[#1B3A33] text-white rounded hover:bg-[#152E28]"
+              >
+                Write a Review
+              </button>
+            ) : (
+              <div className="mt-4 space-y-4">
+                <div className="flex justify-center gap-1">
+                  {[1, 2, 3, 4, 5].map((star) => (
+                    <button
+                      key={star}
+                      onClick={() => setReviewRating(star)}
+                      className={`text-2xl ${
+                        star <= reviewRating
+                          ? 'text-[#FF9900]'
+                          : 'text-gray-300'
+                      }`}
+                    >
+                      {'★'}
+                    </button>
+                  ))}
+                </div>
+                <textarea
+                  value={reviewText}
+                  onChange={(e) => setReviewText(e.target.value)}
+                  placeholder="Write your review..."
+                  className="w-full p-2 border border-gray-300 rounded resize-none focus:ring-2 focus:ring-[#1B3A33] focus:border-[#1B3A33]"
+                  rows={4}
+                />
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => {
+                      handleAddReview(selectedPaper.id, reviewText, reviewRating);
+                    }}
+                    className="flex-1 px-4 py-2 bg-[#1B3A33] text-white rounded hover:bg-[#152E28]"
+                  >
+                    Post Review
+                  </button>
+                  <button
+                    onClick={() => {
+                      setShowReviewForm(false);
+                      setReviewText('');
+                      setReviewRating(5);
+                    }}
+                    className="px-4 py-2 border border-gray-300 rounded hover:bg-gray-50"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+
+          <div className="mb-6">
+            <h2 className="text-lg font-semibold mb-4">Comments</h2>
+            <div className="space-y-4">
+              {selectedPaper.comments.map((comment) => (
+                <div key={comment.id} className="bg-gray-50 p-3 rounded">
+                  <p className="text-sm">{comment.text}</p>
+                  <p className="text-xs text-gray-500 mt-1">
+                    {comment.userName} • {new Date(comment.timestamp).toLocaleDateString()}
+                  </p>
+                </div>
+              ))}
+            </div>
+            <div className="mt-4 space-y-2">
+              <textarea
+                value={commentText}
+                onChange={(e) => setCommentText(e.target.value)}
+                placeholder="Write a comment..."
+                className="w-full p-2 border border-gray-300 rounded resize-none focus:ring-2 focus:ring-[#1B3A33] focus:border-[#1B3A33]"
+                rows={3}
+              />
+              <button
+                onClick={() => handleAddComment(selectedPaper.id, commentText)}
+                className="w-full px-4 py-2 bg-[#1B3A33] text-white rounded hover:bg-[#152E28]"
+              >
+                Post Comment
+              </button>
+            </div>
           </div>
 
           <div>
